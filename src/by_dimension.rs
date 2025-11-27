@@ -43,7 +43,7 @@ impl Transform for ByDimension {
             vecs[i.transform_idx][i.in_dim_idx] = *p;
         }
 
-        let mut out = vec![f64::NAN; self.output_ndim().unwrap()];
+        let mut out = smallvec::smallvec![f64::NAN; self.output_ndim().unwrap()];
 
         for (inner_pt, out_t) in vecs.iter().zip(self.out.iter()) {
             for (val, idx) in out_t

@@ -5,6 +5,7 @@ use ome_zarr_transformations::{
     Sequence, Transform, Translate,
 };
 use std::hint::black_box;
+use smallvec::smallvec;
 
 fn coords(npoints: usize, ndim: usize) -> Vec<Vec<f64>> {
     let mut rng = SmallRng::seed_from_u64(1991);
@@ -49,19 +50,19 @@ fn identity(c: &mut Criterion) {
 }
 
 fn scale(c: &mut Criterion) {
-    bench_transform(c, "scale", &Scale::try_new(vec![2.0, 3.0, 4.0]).unwrap());
+    bench_transform(c, "scale", &Scale::try_new(smallvec![2.0, 3.0, 4.0]).unwrap());
 }
 
 fn translate(c: &mut Criterion) {
     bench_transform(
         c,
         "translate",
-        &Translate::try_new(vec![2.0, 3.0, 4.0]).unwrap(),
+        &Translate::try_new(smallvec![2.0, 3.0, 4.0]).unwrap(),
     );
 }
 
 fn map_axis(c: &mut Criterion) {
-    bench_transform(c, "map_axis", &MapAxis::try_new(vec![2, 1, 0]).unwrap());
+    bench_transform(c, "map_axis", &MapAxis::try_new(smallvec![2, 1, 0]).unwrap());
 }
 
 fn affine(c: &mut Criterion) {
@@ -89,7 +90,7 @@ fn by_dimension(c: &mut Criterion) {
     let mut builder = ByDimensionBuilder::new(3, 3);
     for idx in 0..3 {
         builder
-            .add_transform(Identity, vec![idx], vec![2 - idx])
+            .add_transform(Identity, smallvec![idx], smallvec![2 - idx])
             .unwrap();
     }
     let by_dim = builder.build().unwrap();

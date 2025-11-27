@@ -13,10 +13,13 @@ pub use scale::Scale;
 mod sequence;
 pub use sequence::Sequence;
 mod translate;
+use smallvec::SmallVec;
 pub use translate::Translate;
 
 mod matrix;
 pub use matrix::{Matrix, MatrixBuilder};
+
+pub const COORD_SIZE: usize = 6;
 
 pub trait Transform: std::fmt::Debug {
     /// Transform a point from the input space to the output space.
@@ -51,7 +54,7 @@ pub trait Transform: std::fmt::Debug {
 /// A short vector type alias for convenience,
 /// which may be replaced by arrayvec/smallvec/tinyvec in future
 /// as an optimisation.
-type ShortVec<T> = Vec<T>;
+type ShortVec<T> = SmallVec<[T; COORD_SIZE]>;
 
 #[cfg(test)]
 mod tests {}

@@ -62,7 +62,7 @@ impl Matrix {
     }
 
     pub fn matmul(&self, coord: &[f64]) -> ShortVec<f64> {
-        let mut result = vec![0.0; self.nrows];
+        let mut result = smallvec::smallvec![0.0; self.nrows];
         for (idx, d) in self.data.iter().enumerate() {
             let r = idx / self.ncols;
             let c = idx % self.ncols;

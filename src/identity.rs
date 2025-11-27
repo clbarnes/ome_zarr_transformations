@@ -8,7 +8,7 @@ pub struct Identity;
 
 impl Transform for Identity {
     fn transform(&self, pt: &[f64]) -> ShortVec<f64> {
-        pt.to_vec()
+        ShortVec::from_slice(pt)
     }
 
     // fn invert(&self) -> Option<Self> {
