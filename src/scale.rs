@@ -32,9 +32,11 @@ impl Transform for Scale {
         self.0.iter().zip(pt.iter()).map(|(s, p)| s * p).collect()
     }
 
-    // fn invert(&self) -> Option<Self> {
-    //     Some(Self(self.0.iter().map(|s| 1.0 / s).collect()))
-    // }
+    fn invert(&self) -> Option<Box<dyn Transform>> {
+        Some(Box::new(Scale(
+            self.0.iter().map(|s| 1.0 / s).collect(),
+        )))
+    }
 
     fn input_ndim(&self) -> Option<usize> {
         Some(self.0.len())

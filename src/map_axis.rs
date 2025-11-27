@@ -32,6 +32,14 @@ impl Transform for MapAxis {
         self.0.iter().map(|idx| pt[*idx]).collect()
     }
 
+    fn invert(&self) -> Option<Box<dyn Transform>> {
+        let mut inv_map = smallvec::smallvec![0; self.0.len()];
+        for (out_idx, in_idx) in self.0.iter().enumerate() {
+            inv_map[*in_idx] = out_idx;
+        }
+        Some(Box::new(MapAxis(inv_map)))
+    }
+
     fn input_ndim(&self) -> Option<usize> {
         Some(self.0.len())
     }

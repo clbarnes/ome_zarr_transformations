@@ -31,6 +31,11 @@ impl Transform for Rotation {
         self.matrix.matmul(pt)
     }
 
+    // TODO
+    // fn invert(&self) -> Option<Box<dyn Transform>> {
+    //     None
+    // }
+
     fn input_ndim(&self) -> Option<usize> {
         Some(self.matrix.ncols())
     }

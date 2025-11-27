@@ -23,6 +23,12 @@ impl Transform for Translate {
         self.0.iter().zip(pt.iter()).map(|(t, p)| t + p).collect()
     }
 
+    fn invert(&self) -> Option<Box<dyn Transform>> {
+        Some(Box::new(Translate(
+            self.0.iter().map(|t| -t).collect(),
+        )))
+    }
+
     fn input_ndim(&self) -> Option<usize> {
         Some(self.0.len())
     }

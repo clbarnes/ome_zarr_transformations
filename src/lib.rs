@@ -25,6 +25,11 @@ pub trait Transform: std::fmt::Debug {
     /// Transform a point from the input space to the output space.
     fn transform(&self, pt: &[f64]) -> ShortVec<f64>;
 
+    /// Return the inverse transformation, if it exists.
+    fn invert(&self) -> Option<Box<dyn Transform>> {
+        None
+    }
+
     // /// Transform many points from the input space to the output space.
     // ///
     // /// Trait provides a default implementation, which can be overridden if more efficient options exist.
@@ -34,15 +39,6 @@ pub trait Transform: std::fmt::Debug {
     //         .map(|pt| self.transform(pt.as_ref()))
     //         .collect()
     // }
-
-    // N.B.: can't use Self because that requires Sized, which makes the trait not dyn-compatible,
-    // which means we would have to use enum dispatch.
-    // Can't use an associated trait because then that needs to be specified in order to use Box<dyn ...>
-    //
-    // This renders bijection useless.
-    //
-    // /// None if not invertible.
-    // fn invert(&self) -> Option<Self>;
 
     /// None if not constrained.
     fn input_ndim(&self) -> Option<usize>;

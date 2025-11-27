@@ -19,6 +19,14 @@ impl Transform for Sequence {
         pt_v
     }
 
+    fn invert(&self) -> Option<Box<dyn Transform>> {
+        let mut inv_transforms = Vec::with_capacity(self.0.len());
+        for t in self.0.iter().rev() {
+            inv_transforms.push(t.invert()?);
+        }
+        Some(Box::new(Sequence::new(inv_transforms)))
+    }
+
     fn input_ndim(&self) -> Option<usize> {
         self.0.iter().filter_map(|t| t.input_ndim()).next()
     }

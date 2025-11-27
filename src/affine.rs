@@ -82,6 +82,11 @@ impl Transform for Affine {
         out
     }
 
+    // TODO
+    // fn invert(&self) -> Option<Box<dyn Transform>> {
+    //     None
+    // }
+
     fn input_ndim(&self) -> Option<usize> {
         Some(self.unaugmented.ncols())
     }

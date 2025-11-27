@@ -58,6 +58,10 @@ impl Transform for ByDimension {
         out
     }
 
+    // fn invert(&self) -> Option<Box<dyn Transform>> {
+    //     todo!()
+    // }
+
     fn input_ndim(&self) -> Option<usize> {
         Some(self.idxs.len())
     }
@@ -84,9 +88,9 @@ impl ByDimensionBuilder {
         }
     }
 
-    pub fn add_transform<T: Transform + 'static>(
+    fn add_boxed(
         &mut self,
-        transform: T,
+        transform: Box<dyn Transform>,
         in_dims: ShortVec<usize>,
         out_dims: ShortVec<usize>,
     ) -> Result<(), String> {
@@ -110,11 +114,20 @@ impl ByDimensionBuilder {
         }
 
         self.out.push(OutTransform {
-            transform: Box::new(transform),
+            transform,
             out_idxs: out_dims,
         });
 
         Ok(())
+    }
+
+    pub fn add_transform<T: Transform + 'static>(
+        &mut self,
+        transform: T,
+        in_dims: ShortVec<usize>,
+        out_dims: ShortVec<usize>,
+    ) -> Result<(), String> {
+        self.add_boxed(Box::new(transform), in_dims, out_dims)
     }
 
     fn fill_missing_dims(&mut self) -> Result<(), String> {

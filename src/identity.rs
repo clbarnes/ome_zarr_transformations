@@ -11,9 +11,9 @@ impl Transform for Identity {
         ShortVec::from_slice(pt)
     }
 
-    // fn invert(&self) -> Option<Self> {
-    //     Some(Self)
-    // }
+    fn invert(&self) -> Option<Box<dyn Transform>> {
+        Some(Box::new(Identity))
+    }
 
     fn input_ndim(&self) -> Option<usize> {
         None
