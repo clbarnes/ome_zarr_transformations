@@ -33,10 +33,10 @@ pub struct ByDimension {
 
 impl Transform for ByDimension {
     fn transform(&self, pt: &[f64]) -> ShortVec<f64> {
-        let mut vecs: ShortVec<_> = self
+        let mut vecs: ShortVec<ShortVec<f64>> = self
             .out
             .iter()
-            .map(|ot| vec![f64::NAN; ot.out_idxs.len()])
+            .map(|ot| smallvec::smallvec![f64::NAN; ot.out_idxs.len()])
             .collect();
 
         for (p, i) in pt.iter().zip(self.idxs.iter()) {
@@ -45,10 +45,10 @@ impl Transform for ByDimension {
 
         let mut out = smallvec::smallvec![f64::NAN; self.output_ndim().unwrap()];
 
-        for (inner_pt, out_t) in vecs.iter().zip(self.out.iter()) {
+        for (inner_pt, out_t) in vecs.into_iter().zip(self.out.iter()) {
             for (val, idx) in out_t
                 .transform
-                .transform(inner_pt)
+                .transform(&inner_pt)
                 .into_iter()
                 .zip(out_t.out_idxs.iter())
             {
