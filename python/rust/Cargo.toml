@@ -1,0 +1,16 @@
+[package]
+name = "ome_zarr_transformations_rs"
+version = "0.1.0"
+edition = "2024"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+[lib]
+name = "ome_zarr_transformations"
+crate-type = ["cdylib"]
+
+[dependencies]
+pyo3 = { version = "0.27", features = ["extension-module"] }
+ome_zarr_transformations = { path = "../../rust" }
+pyo3-arrow = "0.15.0"
+numpy = "0.27.0"
+ndarray = "0.17.1"

@@ -1,0 +1,21 @@
+[package]
+name = "ome_zarr_transformations"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+log = "0.4.28"
+smallvec = "1.15.1"
+
+[dev-dependencies]
+approx = "0.5.1"
+criterion = "0.7.0"
+env_logger = "0.11.8"
+faer = { version = "0.23.2", default-features = false, features = [
+    "std",
+    "rand",
+] }
+
+[[bench]]
+name = "benchmarks"
+harness = false
