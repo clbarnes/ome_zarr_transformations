@@ -1,0 +1,30 @@
+on: [push, pull_request]
+name: "rust crate"
+
+defaults:
+  run:
+    shell: bash
+    working-directory: rust
+
+jobs:
+  lint:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
+          components: rustfmt, clippy
+      - uses: Swatinem/rust-cache@v1
+      - run: cargo clippy --all-features
+      - run: cargo fmt -- --check
+
+  test:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
+      - uses: Swatinem/rust-cache@v1
+      - run: cargo test --all-features
