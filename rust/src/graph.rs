@@ -1,5 +1,6 @@
 use ordered_float::OrderedFloat;
 use std::{
+    borrow::Borrow,
     collections::HashMap,
     sync::{Arc, RwLock},
 };
@@ -7,7 +8,10 @@ use std::{
 use petgraph::algo::astar;
 use petgraph::prelude::*;
 
-use crate::{Identity, SequenceBuilder, Transformation};
+use crate::{
+    Transformation,
+    transforms::{Identity, SequenceBuilder},
+};
 
 const DEFAULT_COST: f64 = 1.0;
 
@@ -162,16 +166,22 @@ impl<C: std::hash::Hash + Eq + Clone> TransformGraph<C> {
     ///
     /// If the two values have a single non-identity edge between them, the transformation of that edge will be returned.
     /// Longer paths will return a [crate::Sequence].
-    pub fn find_path(&self, from: C, to: C) -> Option<Arc<dyn Transformation>> {
-        let start = self.coord_systems.get(&from)?;
-
-        // if the source and target are the same, use an identity
-        if from == to {
-            return Some(Arc::new(Identity::new(start.ndim)));
-        }
+    pub fn find_path<Q1, Q2>(&self, from: &Q1, to: &Q2) -> Option<Arc<dyn Transformation>>
+    where
+        C: Borrow<Q1>,
+        C: Borrow<Q2>,
+        Q1: std::hash::Hash + Eq + ?Sized,
+        Q2: std::hash::Hash + Eq + ?Sized,
+    {
+        let start = self.coord_systems.get(from)?;
 
         let u = start.idx;
-        let v = self.coord_systems.get(&to)?.idx;
+        let v = self.coord_systems.get(to)?.idx;
+
+        // if the source and target are the same, use an identity
+        if u == v {
+            return Some(Arc::new(Identity::new(start.ndim)));
+        }
 
         // if the path (or lack thereof) is cached, use that
         if let Some(maybe) = self.path_cache.get(&u, &v) {
@@ -227,7 +237,7 @@ impl<C: std::hash::Hash + Eq + Clone> TransformGraph<C> {
 mod tests {
     use std::sync::Arc;
 
-    use crate::{TransformGraph, Transformation, Translate};
+    use crate::{TransformGraph, Transformation, transforms::Translate};
 
     /// ```text
     /// a <==> b <==> c

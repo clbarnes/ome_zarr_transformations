@@ -1,18 +1,16 @@
+use std::sync::Arc;
+
 use smallvec::SmallVec;
 #[cfg(test)]
 mod tests;
 
-mod transforms;
-pub use transforms::{
-    Affine, Bijection, ByDimension, ByDimensionBuilder, Identity, MapAxis, Rotation, Scale,
-    Sequence, SequenceBuilder, Translate,
-};
+pub mod transforms;
 
 mod alloc;
 pub use alloc::{AllocatingTransformer, CustomAllocatingTransformer};
 
 mod traits;
-pub use traits::Transformation;
+pub use traits::{ArrayProvider, Transformation, ValueProvider};
 mod matrix;
 pub use matrix::{Matrix, MatrixBuilder};
 use smallvec::smallvec;
@@ -20,6 +18,8 @@ mod graph;
 pub use graph::{Edge, TransformGraph};
 
 pub const COORD_SIZE: usize = 6;
+
+pub type AnyTransform = Arc<dyn Transformation>;
 
 /// A short vector type alias for convenience,
 /// which may be replaced by arrayvec/smallvec/tinyvec in future

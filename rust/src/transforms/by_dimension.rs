@@ -6,7 +6,7 @@ use std::{
 
 use smallvec::smallvec;
 
-use crate::{Identity, ShortVec, Transformation};
+use crate::{ShortVec, Transformation, transforms::Identity};
 
 impl ByDimension {
     /// Create a new builder for a ByDimension transform.
@@ -323,7 +323,11 @@ mod tests {
         check_inverse_transform_bulk, check_inverse_transform_col, check_inverse_transform_coord,
         check_transform_bulk, check_transform_col, init_logger,
     };
-    use crate::{Scale, Transformation, Translate, as_muts, as_refs, vec_of_vec};
+    use crate::{
+        Transformation, as_muts, as_refs,
+        transforms::{Scale, Translate},
+        vec_of_vec,
+    };
 
     fn make_transform() -> ByDimension {
         let mut builder = ByDimension::builder(3, 3);

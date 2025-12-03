@@ -23,5 +23,3 @@ Serialising and deserialising transform configuration from OME-Zarr metadata is 
 
 - [ ] `affine` inversion
 - [ ] `affine` homogeneity check
-- [ ] `coordinates`
-- [ ] `displacement`

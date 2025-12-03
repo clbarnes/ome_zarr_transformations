@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use crate::{Identity, ShortVec, Transformation, as_muts, as_refs, vec_of_vec};
+use crate::{ShortVec, Transformation, as_muts, as_refs, transforms::Identity, vec_of_vec};
 use smallvec::smallvec;
 
 /// Apply a sequence of transforms in order.
@@ -201,7 +201,7 @@ mod tests {
         check_inverse_transform_bulk, check_inverse_transform_col, check_inverse_transform_coord,
         check_transform_bulk, check_transform_col,
     };
-    use crate::{Scale, Translate};
+    use crate::transforms::{Scale, Translate};
 
     fn make_transform() -> Sequence {
         Sequence::try_new(vec![

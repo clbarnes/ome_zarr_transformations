@@ -1,9 +1,9 @@
 use criterion::{Criterion, criterion_group, criterion_main};
 use faer::rand::{Rng, SeedableRng, rngs::SmallRng};
-use ome_zarr_transformations::{
-    Affine, Bijection, ByDimension, Identity, MapAxis, Matrix, Rotation, Scale, Sequence,
-    Transformation, Translate,
+use ome_zarr_transformations::transforms::{
+    Affine, Bijection, ByDimension, Identity, MapAxis, Rotation, Scale, Sequence, Translate,
 };
+use ome_zarr_transformations::{Matrix, Transformation};
 use std::{hint::black_box, sync::Arc};
 
 /// An implementation of the identity transform which uses the trait default implementations

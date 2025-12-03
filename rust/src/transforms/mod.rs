@@ -16,3 +16,7 @@ mod sequence;
 pub use sequence::{Sequence, SequenceBuilder};
 mod translate;
 pub use translate::Translate;
+mod coordinate;
+pub use coordinate::Coordinate;
+mod displacement;
+pub use displacement::Displacement;

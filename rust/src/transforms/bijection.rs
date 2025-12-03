@@ -67,11 +67,11 @@ impl Transformation for Bijection {
 #[cfg(test)]
 mod tests {
     use super::Bijection;
-    use crate::Translate;
     use crate::tests::{
         check_inverse_transform_bulk, check_inverse_transform_col, check_inverse_transform_coord,
         check_transform_bulk, check_transform_col,
     };
+    use crate::transforms::Translate;
 
     fn make_transform() -> Bijection {
         Bijection::try_new(
