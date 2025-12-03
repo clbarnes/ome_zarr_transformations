@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use crate::{ShortVec, Transformation, as_muts, as_refs, vec_of_vec};
+use crate::{Identity, ShortVec, Transformation, as_muts, as_refs, vec_of_vec};
 use smallvec::smallvec;
 
 /// Apply a sequence of transforms in order.
@@ -13,7 +13,7 @@ pub struct Sequence {
 impl Sequence {
     fn try_new(transforms: Vec<Arc<dyn Transformation>>) -> Result<Self, String> {
         if transforms.len() < 2 {
-            return Err("Sequence must have >= 2 transformations".into());
+            return Err("Sequence must have >= 2 non-identity transformations".into());
         }
         let max_inner_ndim = transforms
             .iter()
@@ -127,6 +127,10 @@ impl Transformation for Sequence {
     fn output_ndim(&self) -> usize {
         self.transforms.last().unwrap().output_ndim()
     }
+
+    fn is_identity(&self) -> bool {
+        self.transforms.iter().all(|t| t.is_identity())
+    }
 }
 
 #[derive(Debug, Default)]
@@ -137,22 +141,44 @@ impl SequenceBuilder {
         Self(Vec::with_capacity(capacity))
     }
 
-    pub(crate) fn add_arced(&mut self, t: Arc<dyn Transformation>) -> Result<(), String> {
+    pub(crate) fn add_arced(&mut self, t: Arc<dyn Transformation>) -> Result<&mut Self, String> {
         if let Some(last_ndim) = self.0.last().map(|prev| prev.output_ndim()) {
             if t.input_ndim() != last_ndim {
                 return Err("New transformation input dimensionality does not match previous output dimensionality".into());
             }
         }
         self.0.push(t);
-        Ok(())
+        Ok(self)
     }
 
-    pub fn add_transform<T: Transformation + 'static>(&mut self, t: T) -> Result<(), String> {
+    pub fn add_transform<T: Transformation + 'static>(&mut self, t: T) -> Result<&mut Self, String> {
         self.add_arced(Arc::new(t))
     }
 
+    /// Try to build a sequence.
+    /// Fails if the sequence has fewer than 2 transformations.
+    /// Does not skip identity transformations.
     pub fn build(self) -> Result<Sequence, String> {
         Sequence::try_new(self.0)
+    }
+
+    /// Build any type of transformation which can represent these transformations.
+    /// Fails if the sequence has no transformations.
+    ///
+    /// If all transformations are identity, returns a single identity transformation.
+    /// If there is only one non-identity transformation, returns that.
+    /// Otherwise, returns the sequence of non-identity transformations.
+    pub fn build_any(mut self) -> Result<Arc<dyn Transformation>, String> {
+        let Some(ndim) = self.0.last().map(|t| t.input_ndim()) else {
+            return Err("No transforms given".into());
+        };
+        self.0.retain(|t| !t.is_identity());
+        let t = match self.0.len() {
+            0 => Arc::new(Identity::new(ndim)),
+            1 => self.0.pop().unwrap(),
+            _ => Arc::new(Sequence::try_new(self.0)?)
+        };
+        Ok(t)
     }
 }
 

@@ -58,6 +58,10 @@ impl Transformation for Bijection {
     fn column_transform_into(&self, columns: &[&[f64]], bufs: &mut [&mut [f64]]) {
         self.forward.column_transform_into(columns, bufs);
     }
+
+    fn is_identity(&self) -> bool {
+        self.forward.is_identity() && self.reverse.is_identity()
+    }
 }
 
 #[cfg(test)]

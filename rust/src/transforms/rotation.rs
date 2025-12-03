@@ -50,6 +50,10 @@ impl Transformation for Rotation {
     fn output_ndim(&self) -> usize {
         self.matrix.nrows()
     }
+
+    fn is_identity(&self) -> bool {
+        self.matrix.is_identity()
+    }
 }
 
 #[cfg(test)]

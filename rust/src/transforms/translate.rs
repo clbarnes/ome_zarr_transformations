@@ -48,6 +48,10 @@ impl Transformation for Translate {
     fn output_ndim(&self) -> usize {
         self.0.len()
     }
+
+    fn is_identity(&self) -> bool {
+        self.0.iter().all(|t| *t == 0.0)
+    }
 }
 
 #[cfg(test)]

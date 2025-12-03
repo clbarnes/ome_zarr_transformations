@@ -50,6 +50,16 @@ pub trait Transformation: std::fmt::Debug {
     /// specific transformations may override this.
     fn invert(&self) -> Option<Arc<dyn Transformation>>;
 
+    /// Whether this transformation represents the identity,
+    /// i.e. input and output are the same number of dimensions
+    /// and the coordinate values (and positions) are not changed.
+    /// This allows some downstream optimisations.
+    ///
+    /// `true` means it definitely is an identity.
+    /// For certain transformations, checking for identity may be very expensive;
+    /// these should return `false` and users should be aware that a `false` value is not definitive.
+    fn is_identity(&self) -> bool;
+
     /// None if not constrained.
     fn input_ndim(&self) -> usize;
 

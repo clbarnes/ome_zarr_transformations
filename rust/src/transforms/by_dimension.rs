@@ -44,6 +44,8 @@ impl Transformation for ByDimension {
         let mut ordered_pt: ShortVec<f64> = smallvec![f64::NAN; pts.len()];
         let mut ordered_buf: ShortVec<f64> = smallvec![f64::NAN; bufs.len()];
 
+        // We don't delegate to inner bulk_transform_into implementations here
+        // because that would involve allocating new output buffer outer vecs.
         for (pt, buf) in pts.iter().zip(bufs.iter_mut()) {
             for bt in self.0.iter() {
                 for (i, o) in bt.in_dims.iter().zip(ordered_pt.iter_mut()) {
@@ -73,7 +75,7 @@ impl Transformation for ByDimension {
                 input_cols.push(columns[idx])
             }
 
-            // Swap the desired columns to the front of bufs.
+            // Swap the desired output columns for this transform so that they are contiguous and correctly ordered.
             // We can't create a new vec because the compiler can't guarantee
             // we wouldn't have 2 mutable references to the same column.
             for (local_tgt_idx, desired_idx) in bt.out_dims.iter().enumerate() {
@@ -104,10 +106,10 @@ impl Transformation for ByDimension {
             start = end;
         }
 
-        // Put the columns back again.
+        // Put the output columns back again.
         // This is not required in all workflows but it's cheap.
-        for (a, b) in swaps.iter().rev() {
-            bufs.swap(*a, *b);
+        for (a, b) in swaps.into_iter().rev() {
+            bufs.swap(a, b);
         }
     }
 
@@ -129,6 +131,18 @@ impl Transformation for ByDimension {
 
     fn output_ndim(&self) -> usize {
         self.0.iter().map(|bt| bt.out_dims.len()).sum()
+    }
+
+    fn is_identity(&self) -> bool {
+        for st in self.0.iter() {
+            if !st.transform.is_identity() {
+                return false;
+            }
+            if st.in_dims != st.out_dims {
+                return false;
+            }
+        }
+        true
     }
 }
 
@@ -153,6 +167,11 @@ impl ByDimensionBuilder {
         in_dims: &[usize],
         out_dims: &[usize],
     ) -> Result<&mut Self, String> {
+        if transform.is_identity() {
+            // fill all identity dimensions in one step later
+            return Ok(self);
+        }
+
         for &out_dim in out_dims.iter() {
             if !self.out_dims.remove(&out_dim) {
                 return Err(format!("Output index {} already used", out_dim));
@@ -201,10 +220,35 @@ impl ByDimensionBuilder {
         Ok(())
     }
 
+    /// Fill in any unused dimensions with an identity, if possible,
+    /// and return the [ByDimension].
+    ///
+    /// See [ByDimensionBuilder::build_any] for a version which tries to optimise
+    /// away unnecessary transformations.
     pub fn build(mut self) -> Result<ByDimension, String> {
         self.fill_missing_dims()?;
 
         Ok(ByDimension(self.sub_transforms))
+    }
+
+    /// If the transformation is equivalent to an Identity, return that.
+    /// If it is equivalent to a single other transform, return that.
+    /// Otherwise, return the bydimension.
+    pub fn build_any(self) -> Result<Arc<dyn Transformation>, String> {
+        let bd = self.build()?;
+        if bd.is_identity() {
+            return Ok(Arc::new(Identity::new(bd.input_ndim())))
+        }
+
+        if bd.0.len() == 1 {
+            let t = &bd.0[0];
+
+            if t.in_dims.iter().zip(t.out_dims.iter()).enumerate().all(|(idx, (ind, outd))| idx == *ind && ind == outd) {
+                return Ok(t.transform.clone())
+            }
+        }
+
+        Ok(Arc::new(bd))
     }
 }
 

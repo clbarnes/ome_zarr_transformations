@@ -99,6 +99,13 @@ impl Transformation for Affine {
         None
     }
 
+    fn is_identity(&self) -> bool {
+        if self.translation.iter().any(|t| *t != 0.0) {
+            return false;
+        }
+        self.unaugmented.is_identity()
+    }
+
     fn column_transform_into(&self, columns: &[&[f64]], bufs: &mut [&mut [f64]]) {
         self.unaugmented.matmul_transposed_into(columns, bufs);
         for (col, t) in bufs.iter_mut().zip(self.translation.iter()) {

@@ -113,6 +113,26 @@ impl Matrix {
         self.data.get(row * self.ncols + col)
     }
 
+    /// Whether this matrix is an identity matrix,
+    /// i.e. a square matrix with 1s on the main diagonal and 0s elsewhere.
+    pub fn is_identity(&self) -> bool {
+        if self.ncols != self.nrows {
+            return false;
+        }
+        for (idx, d) in self.data.iter().enumerate() {
+            let row = idx / self.nrows;
+            let col = idx % self.nrows;
+            if row == col {
+                if *d != 1.0 {
+                    return false;
+                }
+            } else if *d != 0.0 {
+                return false;
+            }
+        }
+        true
+    }
+
     fn get_submat(
         &self,
         row: usize,

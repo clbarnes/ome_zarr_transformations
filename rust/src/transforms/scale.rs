@@ -57,6 +57,10 @@ impl Transformation for Scale {
     fn output_ndim(&self) -> usize {
         self.0.len()
     }
+
+    fn is_identity(&self) -> bool {
+        self.0.iter().all(|s| *s == 1.0)
+    }
 }
 
 #[cfg(test)]

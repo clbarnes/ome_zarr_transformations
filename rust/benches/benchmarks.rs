@@ -27,6 +27,10 @@ impl Transformation for DefaultIdentity {
     fn invert(&self) -> Option<Arc<dyn Transformation>> {
         Some(Arc::new(*self))
     }
+
+    fn is_identity(&self) -> bool {
+        true
+    }
 }
 
 fn coords(n_rows: usize, n_cols: usize) -> Vec<Vec<f64>> {
@@ -80,7 +84,7 @@ impl<'c> Bencher<'c> {
     fn coords<T: Transformation>(&mut self, t: &T) {
         let coords = coord_array(false);
         let mut out = vec![f64::NAN; t.output_ndim()];
-        self.criterion.bench_function(&format!("{}[coords]", self.name), |b| {
+        self.criterion.bench_function(&format!("{}[coord]", self.name), |b| {
             b.iter(|| {
                 for pt in coords.iter() {
                     black_box(t.transform_into(pt, &mut out));
@@ -91,7 +95,7 @@ impl<'c> Bencher<'c> {
         let mut bulk = vec![vec![f64::NAN; t.output_ndim()]; coords.len()];
         let coord_refs: Vec<&[_]> = coords.iter().map(|c| c.as_ref()).collect();
         let mut bulk_refs: Vec<&mut[_]> = bulk.iter_mut().map(|c| c.as_mut()).collect();
-        self.criterion.bench_function(&format!("{}[many]", self.name), |b| {
+        self.criterion.bench_function(&format!("{}[bulk]", self.name), |b| {
             b.iter(|| {
                 black_box(t.bulk_transform_into(&coord_refs, &mut bulk_refs));
             })
@@ -102,7 +106,7 @@ impl<'c> Bencher<'c> {
         let col_refs: Vec<&[_]> = cols.iter().map(|c| c.as_ref()).collect();
         let mut out = vec![vec![f64::NAN; n_coords]; t.output_ndim()];
         let mut out_refs: Vec<&mut[_]> = out.iter_mut().map(|v| v.as_mut()).collect();
-        self.criterion.bench_function(&format!("{}[columns]", self.name), |b| {
+        self.criterion.bench_function(&format!("{}[column]", self.name), |b| {
             b.iter(|| {
                 black_box(t.column_transform_into(&col_refs, &mut out_refs));
             })

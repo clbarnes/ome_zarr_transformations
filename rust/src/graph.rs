@@ -30,13 +30,49 @@ impl Edge {
     }
 }
 
-type PathCache = HashMap<(NodeIndex, NodeIndex), Option<Arc<dyn Transformation>>>;
+/// Contains a locked map from (src, tgt) tuple to the possible transformation going from src to tgt,
+/// if it has been queried before.
+/// An entry will be unoccupied if this path has not been queried before,
+/// None if it was queried before and found not to exist,
+/// and Some if a tranformation was found.
+#[derive(Debug, Default)]
+struct PathCache(RwLock<HashMap<(NodeIndex, NodeIndex), Option<Arc<dyn Transformation>>>>);
 
+impl PathCache {
+    /// Look-before-you-leap poison-clearing.
+    fn clear_poison(&self) {
+        if self.0.is_poisoned() {
+            self.0.clear_poison();
+        }
+    }
+
+    fn clear_mut(&mut self) {
+        self.clear_poison();
+        self.0.get_mut().unwrap().clear();
+    }
+
+    fn insert(&self, src: NodeIndex, tgt: NodeIndex, maybe_t: Option<Arc<dyn Transformation>>) -> Option<Option<Arc<dyn Transformation>>> {
+        self.clear_poison();
+        self.0
+            .write()
+            .unwrap()
+            .insert((src, tgt), maybe_t)
+    }
+
+    fn get(&self, src: &NodeIndex, tgt: &NodeIndex) -> Option<Option<Arc<dyn Transformation>>> {
+        self.clear_poison();
+        let outer = self.0.read().unwrap();
+        outer.get(&(*src, *tgt)).map(|t| t.as_ref().cloned())
+    }
+}
+
+/// This type optimises for performance rather than a faithful representation of the given transformations.
+/// In practice, this means it filters out superfluous identity transformations.
 #[derive(Debug, Default)]
 pub struct TransformGraph<C: std::hash::Hash + Eq + Clone> {
     graph: StableDiGraph<C, Edge>,
     coord_systems: HashMap<C, NodeInfo>,
-    path_cache: RwLock<PathCache>,
+    path_cache: PathCache,
 }
 
 #[derive(Debug, Copy, Clone)]
@@ -62,8 +98,12 @@ impl<C: std::hash::Hash + Eq + Clone> TransformGraph<C> {
         }
     }
 
-    /// Returns whether the inverse edge was added.
+    /// Returns whether the inverse edge was added, if it was requested.
     /// Fails if the new edge's dimensionality is inconsistent with existing edges.
+    ///
+    /// Weight is set to 0 if the transformation is an identity.
+    ///
+    /// Adding edges clears all cached paths.
     pub fn add_edge(
         &mut self,
         src: impl Into<C>,
@@ -72,21 +112,38 @@ impl<C: std::hash::Hash + Eq + Clone> TransformGraph<C> {
         weight: f64,
         with_inverse: bool,
     ) -> Result<bool, String> {
-        self.clear_cache();
+        self.path_cache.clear_mut();
         let t = transform.into();
 
-        let u = self.ensure_coord_system(src.into(), t.input_ndim())?;
-        let v = self.ensure_coord_system(tgt.into(), t.output_ndim())?;
+        let src_s = src.into();
+        let tgt_s = tgt.into();
+
+        // Do not add self-edges.
+        if src_s == tgt_s {
+            self.ensure_coord_system(src_s, t.input_ndim())?;
+            return Ok(true);
+        }
+
+        let u = self.ensure_coord_system(src_s, t.input_ndim())?;
+        let v = self.ensure_coord_system(tgt_s, t.output_ndim())?;
+
+        // Simplify identity transforms.
+        let (t, w): (Arc<dyn Transformation>, f64) = if t.is_identity() {
+            (Arc::new(Identity::new(t.input_ndim())), 0.0)
+         } else {
+            (t, weight)
+        };
 
         let mut added_inverse = false;
+        // Add the inverse if requested, if it exists.
         if with_inverse {
             if let Some(inverse) = t.invert() {
-                self.graph.add_edge(v, u, Edge::new_cost(inverse, weight));
+                self.graph.add_edge(v, u, Edge::new_cost(inverse, w));
                 added_inverse = true;
             }
         }
 
-        self.graph.add_edge(u, v, Edge::new_cost(t, weight));
+        self.graph.add_edge(u, v, Edge::new_cost(t, w));
         Ok(added_inverse)
     }
 
@@ -97,31 +154,13 @@ impl<C: std::hash::Hash + Eq + Clone> TransformGraph<C> {
             .map(|e| e.weight())
     }
 
-    fn cache_get(
-        &self,
-        src: &NodeIndex,
-        tgt: &NodeIndex,
-    ) -> Option<Option<Arc<dyn Transformation>>> {
-        let outer = self.path_cache.read().expect("should not be poisonned");
-        outer.get(&(*src, *tgt)).map(|t| t.as_ref().cloned())
-    }
-
-    fn cache_insert(
-        &self,
-        src: NodeIndex,
-        tgt: NodeIndex,
-        t: Option<Arc<dyn Transformation>>,
-    ) -> Option<Option<Arc<dyn Transformation>>> {
-        self.path_cache
-            .write()
-            .expect("should not be poisonned")
-            .insert((src, tgt), t)
-    }
-
-    fn clear_cache(&mut self) {
-        self.path_cache.get_mut().unwrap().clear();
-    }
-
+    /// Get a transformation between two coordinate systems, if it exists.
+    ///
+    /// If the systems are equivalent, an [Identity] will be returned.
+    /// Note that transforming with an [Identity] is a handful of memcpys which could be avoided.
+    ///
+    /// If the two values have a single non-identity edge between them, the transformation of that edge will be returned.
+    /// Longer paths will return a [crate::Sequence].
     pub fn find_path(
         &self,
         from: impl AsRef<C>,
@@ -132,6 +171,7 @@ impl<C: std::hash::Hash + Eq + Clone> TransformGraph<C> {
 
         let start = self.coord_systems.get(from_ref)?;
 
+        // if the source and target are the same, use an identity
         if from_ref == to_ref {
             return Some(Arc::new(Identity::new(start.ndim)));
         }
@@ -139,23 +179,38 @@ impl<C: std::hash::Hash + Eq + Clone> TransformGraph<C> {
         let u = start.idx;
         let v = self.coord_systems.get(to_ref)?.idx;
 
-        if let Some(maybe) = self.cache_get(&u, &v) {
+        // if the path (or lack thereof) is cached, use that
+        if let Some(maybe) = self.path_cache.get(&u, &v) {
             return maybe;
         }
 
+        // If a direct edge exists, use it.
+        // This is probably a negligible optimisation, simply saving astar's setup and first iteration.
+        if let Some(e) = self.best_edge(u, v) {
+            // If the edge is an identity, use that for performance.
+            let t = if e.transform.is_identity() {
+                Arc::new(Identity::new(start.ndim))
+            } else {
+                e.transform.clone()
+            };
+            self.path_cache.insert(u, v, Some(t.clone()));
+            return Some(t);
+        }
+
         let zero = OrderedFloat(0.0);
+
+        // Find the shortest path between nodes.
         let Some((_cost, path)) = astar(&self.graph, u, |n| n == v, |e| e.weight().cost, |_| zero)
         else {
-            self.cache_insert(u, v, None);
+            // no path exists
+            self.path_cache.insert(u, v, None);
             return None;
         };
 
         let t = match path.len() {
-            0 | 1 => unreachable!(),
-            2 => self
-                .best_edge(path[0], path[1])
-                .map(|e| e.transform.clone())
-                .expect("already checked for path existence"),
+            0 => unreachable!("paths must include the start and end point"),
+            1 => unreachable!("already checked for src=tgt"),
+            2 => unreachable!("already checked for single-edge path"),
             n => {
                 let mut builder = SequenceBuilder::with_capacity(n - 1);
                 for ab in path.windows(2) {
@@ -163,11 +218,11 @@ impl<C: std::hash::Hash + Eq + Clone> TransformGraph<C> {
                         .add_arced(self.best_edge(ab[0], ab[1])?.transform.clone())
                         .expect("already checked dimensionality");
                 }
-                Arc::new(builder.build().expect("already checked sequence length"))
+                builder.build_any().expect("already checked sequence length")
             }
         };
 
-        self.cache_insert(u, v, Some(t.clone()));
+        self.path_cache.insert(u, v, Some(t.clone()));
         Some(t)
     }
 }

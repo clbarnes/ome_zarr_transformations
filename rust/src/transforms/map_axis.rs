@@ -57,6 +57,10 @@ impl Transformation for MapAxis {
     fn output_ndim(&self) -> usize {
         self.0.len()
     }
+
+    fn is_identity(&self) -> bool {
+        self.0.iter().enumerate().all(|(a, b)| a == *b)
+    }
 }
 
 #[cfg(test)]

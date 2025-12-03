@@ -36,6 +36,10 @@ impl Transformation for Identity {
             b.copy_from_slice(c);
         }
     }
+
+    fn is_identity(&self) -> bool {
+        true
+    }
 }
 
 #[cfg(test)]
