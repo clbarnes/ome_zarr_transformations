@@ -112,30 +112,29 @@ impl<C: std::hash::Hash + Eq + Clone> TransformGraph<C> {
         &mut self,
         src: impl Into<C>,
         tgt: impl Into<C>,
-        transform: impl Into<Arc<dyn Transformation>>,
+        transform: Arc<dyn Transformation>,
         weight: f64,
         with_inverse: bool,
     ) -> Result<bool, String> {
         self.path_cache.clear_mut();
-        let t = transform.into();
 
         let src_s = src.into();
         let tgt_s = tgt.into();
 
         // Do not add self-edges.
         if src_s == tgt_s {
-            self.ensure_coord_system(src_s, t.input_ndim())?;
+            self.ensure_coord_system(src_s, transform.input_ndim())?;
             return Ok(true);
         }
 
-        let u = self.ensure_coord_system(src_s, t.input_ndim())?;
-        let v = self.ensure_coord_system(tgt_s, t.output_ndim())?;
+        let u = self.ensure_coord_system(src_s, transform.input_ndim())?;
+        let v = self.ensure_coord_system(tgt_s, transform.output_ndim())?;
 
         // Simplify identity transforms.
-        let (t, w): (Arc<dyn Transformation>, f64) = if t.is_identity() {
-            (Arc::new(Identity::new(t.input_ndim())), 0.0)
+        let (t, w): (Arc<dyn Transformation>, f64) = if transform.is_identity() {
+            (Arc::new(Identity::new(transform.input_ndim())), 0.0)
         } else {
-            (t, weight)
+            (transform, weight)
         };
 
         let mut added_inverse = false;
@@ -163,23 +162,16 @@ impl<C: std::hash::Hash + Eq + Clone> TransformGraph<C> {
     ///
     /// If the two values have a single non-identity edge between them, the transformation of that edge will be returned.
     /// Longer paths will return a [crate::Sequence].
-    pub fn find_path(
-        &self,
-        from: impl AsRef<C>,
-        to: impl AsRef<C>,
-    ) -> Option<Arc<dyn Transformation>> {
-        let from_ref = from.as_ref();
-        let to_ref = to.as_ref();
-
-        let start = self.coord_systems.get(from_ref)?;
+    pub fn find_path(&self, from: C, to: C) -> Option<Arc<dyn Transformation>> {
+        let start = self.coord_systems.get(&from)?;
 
         // if the source and target are the same, use an identity
-        if from_ref == to_ref {
+        if from == to {
             return Some(Arc::new(Identity::new(start.ndim)));
         }
 
         let u = start.idx;
-        let v = self.coord_systems.get(to_ref)?.idx;
+        let v = self.coord_systems.get(&to)?.idx;
 
         // if the path (or lack thereof) is cached, use that
         if let Some(maybe) = self.path_cache.get(&u, &v) {
@@ -228,5 +220,74 @@ impl<C: std::hash::Hash + Eq + Clone> TransformGraph<C> {
 
         self.path_cache.insert(u, v, Some(t.clone()));
         Some(t)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::sync::Arc;
+
+    use crate::{TransformGraph, Transformation, Translate};
+
+    /// ```text
+    /// a <==> b <==> c
+    ///         \---> d
+    /// ```
+    fn make_graph() -> TransformGraph<&'static str> {
+        let mut tg = TransformGraph::default();
+        tg.add_edge(
+            "a",
+            "b",
+            Arc::new(Translate::try_new(&[1.0, 2.0]).unwrap()),
+            1.0,
+            true,
+        )
+        .unwrap();
+        tg.add_edge(
+            "b",
+            "c",
+            Arc::new(Translate::try_new(&[10.0, 20.0]).unwrap()),
+            1.0,
+            true,
+        )
+        .unwrap();
+        tg.add_edge(
+            "b",
+            "d",
+            Arc::new(Translate::try_new(&[100.0, 200.0]).unwrap()),
+            1.0,
+            false,
+        )
+        .unwrap();
+        tg
+    }
+
+    fn check_transform(t: Arc<dyn Transformation>, input: &[f64], expected: &[f64]) {
+        let mut out_buf = vec![f64::NAN; expected.len()];
+        t.transform_into(input, &mut out_buf);
+        assert_eq!(&out_buf, expected);
+    }
+
+    #[test]
+    fn test_forward() {
+        let tg = make_graph();
+        let t = tg.find_path("a", "c").unwrap();
+        check_transform(t, &[0.0, 0.0], &[11.0, 22.0]);
+
+        let t2 = tg.find_path("a", "d").unwrap();
+        check_transform(t2, &[0.0, 0.0], &[101.0, 202.0]);
+    }
+
+    #[test]
+    fn test_reverse() {
+        let tg = make_graph();
+        let t = tg.find_path("c", "a").unwrap();
+        check_transform(t, &[0.0, 0.0], &[-11.0, -22.0]);
+    }
+
+    #[test]
+    fn test_no_reverse() {
+        let tg = make_graph();
+        assert!(tg.find_path("d", "a").is_none())
     }
 }
