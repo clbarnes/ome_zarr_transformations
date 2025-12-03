@@ -17,12 +17,12 @@ impl MapAxis {
     pub fn try_new(map: &[usize]) -> Result<Self, String> {
         let visited: BTreeSet<_> = map.iter().collect();
         if visited.len() != map.len() {
-            return Err(format!(
-                "MapAxis: multiple input dimensions map to the same output dimension"
-            ));
+            return Err(
+                "MapAxis: multiple input dimensions map to the same output dimension".into(),
+            );
         }
         if visited.last().is_some_and(|mx| **mx != map.len() - 1) {
-            return Err(format!("MapAxis: not all output dimensions are addressed"));
+            return Err("MapAxis: not all output dimensions are addressed".into());
         }
 
         Ok(Self(map.to_smallvec()))

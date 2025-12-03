@@ -1,5 +1,5 @@
 use criterion::{Criterion, criterion_group, criterion_main};
-use faer::{rand::{Rng, SeedableRng, rngs::SmallRng}};
+use faer::rand::{Rng, SeedableRng, rngs::SmallRng};
 use ome_zarr_transformations::{
     Affine, Bijection, ByDimension, Identity, MapAxis, Matrix, Rotation, Scale, Sequence,
     Transformation, Translate,
@@ -58,7 +58,10 @@ fn identity_matrix(ndim: usize) -> Matrix {
 
 fn coord_array(transpose: bool) -> Vec<Vec<f64>> {
     if transpose {
-        coords(3, 1000)} else {coords(1000, 3)}
+        coords(3, 1000)
+    } else {
+        coords(1000, 3)
+    }
 }
 
 fn transpose(coords: &[Vec<f64>]) -> Vec<Vec<f64>> {
@@ -78,42 +81,47 @@ struct Bencher<'c> {
 
 impl<'c> Bencher<'c> {
     fn new<S: Into<String>>(name: S, criterion: &'c mut Criterion) -> Self {
-        Self{name: name.into(), criterion}
+        Self {
+            name: name.into(),
+            criterion,
+        }
     }
 
     fn coords<T: Transformation>(&mut self, t: &T) {
         let coords = coord_array(false);
         let mut out = vec![f64::NAN; t.output_ndim()];
-        self.criterion.bench_function(&format!("{}[coord]", self.name), |b| {
-            b.iter(|| {
-                for pt in coords.iter() {
-                    black_box(t.transform_into(pt, &mut out));
-                }
-            })
-        });
+        self.criterion
+            .bench_function(&format!("{}[coord]", self.name), |b| {
+                b.iter(|| {
+                    for pt in coords.iter() {
+                        black_box(t.transform_into(pt, &mut out));
+                    }
+                })
+            });
 
         let mut bulk = vec![vec![f64::NAN; t.output_ndim()]; coords.len()];
         let coord_refs: Vec<&[_]> = coords.iter().map(|c| c.as_ref()).collect();
-        let mut bulk_refs: Vec<&mut[_]> = bulk.iter_mut().map(|c| c.as_mut()).collect();
-        self.criterion.bench_function(&format!("{}[bulk]", self.name), |b| {
-            b.iter(|| {
-                black_box(t.bulk_transform_into(&coord_refs, &mut bulk_refs));
-            })
-        });
+        let mut bulk_refs: Vec<&mut [_]> = bulk.iter_mut().map(|c| c.as_mut()).collect();
+        self.criterion
+            .bench_function(&format!("{}[bulk]", self.name), |b| {
+                b.iter(|| {
+                    black_box(t.bulk_transform_into(&coord_refs, &mut bulk_refs));
+                })
+            });
 
         let n_coords = coords.len();
         let cols = transpose(&coords);
         let col_refs: Vec<&[_]> = cols.iter().map(|c| c.as_ref()).collect();
         let mut out = vec![vec![f64::NAN; n_coords]; t.output_ndim()];
-        let mut out_refs: Vec<&mut[_]> = out.iter_mut().map(|v| v.as_mut()).collect();
-        self.criterion.bench_function(&format!("{}[column]", self.name), |b| {
-            b.iter(|| {
-                black_box(t.column_transform_into(&col_refs, &mut out_refs));
-            })
-        });
+        let mut out_refs: Vec<&mut [_]> = out.iter_mut().map(|v| v.as_mut()).collect();
+        self.criterion
+            .bench_function(&format!("{}[column]", self.name), |b| {
+                b.iter(|| {
+                    black_box(t.column_transform_into(&col_refs, &mut out_refs));
+                })
+            });
     }
 }
-
 
 fn default_identity(c: &mut Criterion) {
     let mut bencher = Bencher::new(stringify!(DefaultIdentity), c);
@@ -179,7 +187,9 @@ fn by_dimension(c: &mut Criterion) {
     let mut bencher = Bencher::new(stringify!(ByDimension), c);
     let mut builder = ByDimension::builder(3, 3);
     for idx in 0..3 {
-        builder.add_transform(Identity::new(1), &[idx], &[2 - idx]).unwrap();
+        builder
+            .add_transform(Identity::new(1), &[idx], &[2 - idx])
+            .unwrap();
     }
     let t = builder.build().unwrap();
     bencher.coords(&t);

@@ -33,7 +33,7 @@ impl Matrix {
     /// Row-major/ C order data
     pub fn try_new(data: Vec<f64>, ncols: usize) -> Result<Self, String> {
         // TODO: check homogeneity
-        if data.len() % ncols != 0 {
+        if !data.len().is_multiple_of(ncols) {
             return Err(format!(
                 "Matrix data length {} is not divisible by ncols {}",
                 data.len(),
@@ -46,7 +46,7 @@ impl Matrix {
 
     pub fn try_new_colmaj(mut data: Vec<f64>, nrows: usize) -> Result<Self, String> {
         // TODO: check homogeneity
-        if data.len() % nrows != 0 {
+        if !data.len().is_multiple_of(nrows) {
             return Err(format!(
                 "Matrix data length {} is not divisible by nrows {}",
                 data.len(),
@@ -95,7 +95,7 @@ impl Matrix {
     }
 
     /// N.B. Coordinate "columns" are the _rows_ of the input and output matrices.
-    pub fn matmul_transposed_into(&self, coord_cols: &[&[f64]], buf: &mut[&mut[f64]]) {
+    pub fn matmul_transposed_into(&self, coord_cols: &[&[f64]], buf: &mut [&mut [f64]]) {
         for (out_dim_idx, buf_col) in buf.iter_mut().enumerate() {
             buf_col.fill(0.0);
             let row_start = out_dim_idx * self.ncols;
@@ -262,8 +262,8 @@ impl MatrixBuilder {
         Self {
             row_vecs,
             dim_len: None,
-            data: Default::default(),}
-
+            data: Default::default(),
+        }
     }
 
     pub fn add_vec(&mut self, vec: &[f64]) -> Result<&mut Self, String> {

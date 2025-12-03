@@ -66,7 +66,6 @@ pub struct CustomAllocatingTransformer<
 }
 
 impl<
-    'a,
     T: Transformation,
     Coord: AsRef<[f64]> + AsMut<[f64]>,
     Col: AsRef<[f64]> + AsMut<[f64]>,

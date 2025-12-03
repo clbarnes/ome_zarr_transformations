@@ -7,6 +7,7 @@ use smallvec::smallvec;
 #[derive(Debug)]
 pub struct Sequence {
     transforms: Vec<Arc<dyn Transformation>>,
+    /// How wide should the buffers
     max_inner_ndim: usize,
 }
 
@@ -66,9 +67,12 @@ impl Transformation for Sequence {
     }
 
     fn bulk_transform_into(&self, pts: &[&[f64]], bufs: &mut [&mut [f64]]) {
+        // vec might be better here as we index a lot
         let mut buf0: ShortVec<f64> = smallvec![f64::NAN; self.max_inner_ndim];
         let mut buf1: ShortVec<f64> = smallvec![f64::NAN; self.max_inner_ndim];
 
+        // delegating to inner bulk_transform_into method would mean a lot of extra
+        // allocations as we'd need to trim and extend the inner bufs.
         for (pt, buf) in pts.iter().zip(bufs.iter_mut()) {
             (buf0, buf1) = self.transform_into_inner(pt, buf, buf0, buf1);
         }
@@ -76,6 +80,11 @@ impl Transformation for Sequence {
 
     fn column_transform_into(&self, columns: &[&[f64]], bufs: &mut [&mut [f64]]) {
         let n_pts = columns[0].len();
+        // todo: can we re-use the output bufs as an intermediate buffer?
+        //   - only in cases where it's at least as wide as _every_ intermediate dimensionality
+        //     (technically every other intermediate dimensionality, as we could have a wide and a narrow one)
+        //   - this may cause problems/ require extra allocations when treating the mutable slices as immutable
+        //     when it's acting as the source coordinates
         let mut buf0_vec = vec_of_vec(self.max_inner_ndim, n_pts, f64::NAN);
         let mut buf1_vec = vec_of_vec(self.max_inner_ndim, n_pts, f64::NAN);
 
@@ -95,18 +104,16 @@ impl Transformation for Sequence {
                 } else {
                     t.column_transform_into(&as_refs(&buf1_vec[..in_ndim]), bufs);
                 }
+            } else if buf0_input {
+                t.column_transform_into(
+                    &as_refs(&buf0_vec[..in_ndim]),
+                    &mut as_muts(&mut buf1_vec[..out_ndim]),
+                );
             } else {
-                if buf0_input {
-                    t.column_transform_into(
-                        &as_refs(&buf0_vec[..in_ndim]),
-                        &mut as_muts(&mut buf1_vec[..out_ndim]),
-                    );
-                } else {
-                    t.column_transform_into(
-                        &as_refs(&buf1_vec[..in_ndim]),
-                        &mut as_muts(&mut buf0_vec[..out_ndim]),
-                    );
-                }
+                t.column_transform_into(
+                    &as_refs(&buf1_vec[..in_ndim]),
+                    &mut as_muts(&mut buf0_vec[..out_ndim]),
+                );
             }
             buf0_input = !buf0_input;
         }
@@ -142,16 +149,19 @@ impl SequenceBuilder {
     }
 
     pub(crate) fn add_arced(&mut self, t: Arc<dyn Transformation>) -> Result<&mut Self, String> {
-        if let Some(last_ndim) = self.0.last().map(|prev| prev.output_ndim()) {
-            if t.input_ndim() != last_ndim {
-                return Err("New transformation input dimensionality does not match previous output dimensionality".into());
-            }
+        if let Some(last_ndim) = self.0.last().map(|prev| prev.output_ndim())
+            && t.input_ndim() != last_ndim
+        {
+            return Err("New transformation input dimensionality does not match previous output dimensionality".into());
         }
         self.0.push(t);
         Ok(self)
     }
 
-    pub fn add_transform<T: Transformation + 'static>(&mut self, t: T) -> Result<&mut Self, String> {
+    pub fn add_transform<T: Transformation + 'static>(
+        &mut self,
+        t: T,
+    ) -> Result<&mut Self, String> {
         self.add_arced(Arc::new(t))
     }
 
@@ -162,7 +172,7 @@ impl SequenceBuilder {
         Sequence::try_new(self.0)
     }
 
-    /// Build any type of transformation which can represent these transformations.
+    /// Build any type of transformation which can represent this sequence.
     /// Fails if the sequence has no transformations.
     ///
     /// If all transformations are identity, returns a single identity transformation.
@@ -176,7 +186,7 @@ impl SequenceBuilder {
         let t = match self.0.len() {
             0 => Arc::new(Identity::new(ndim)),
             1 => self.0.pop().unwrap(),
-            _ => Arc::new(Sequence::try_new(self.0)?)
+            _ => Arc::new(Sequence::try_new(self.0)?),
         };
         Ok(t)
     }

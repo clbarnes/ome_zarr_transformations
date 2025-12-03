@@ -5,7 +5,7 @@ use std::sync::Arc;
 /// Implementations may not perform any bounds checks on the input,
 /// as these transformations generally happen in performance-critical hot loops.
 /// Therefore, they may panic if coordinates or output buffers of incorrect length are given.
-pub trait Transformation: std::fmt::Debug {
+pub trait Transformation: std::fmt::Debug + Send + Sync {
     /// Transform a single point from the input space to the output space.
     /// Writes to a pre-allocated output buffer.
     fn transform_into(&self, pt: &[f64], buf: &mut [f64]);
@@ -60,9 +60,7 @@ pub trait Transformation: std::fmt::Debug {
     /// these should return `false` and users should be aware that a `false` value is not definitive.
     fn is_identity(&self) -> bool;
 
-    /// None if not constrained.
     fn input_ndim(&self) -> usize;
 
-    /// None if not constrained.
     fn output_ndim(&self) -> usize;
 }

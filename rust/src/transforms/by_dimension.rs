@@ -1,4 +1,8 @@
-use std::{collections::BTreeSet, f64, sync::Arc};
+use std::{
+    collections::{BTreeMap, BTreeSet},
+    f64,
+    sync::Arc,
+};
 
 use smallvec::smallvec;
 
@@ -16,6 +20,27 @@ struct SubTransform {
     transform: Arc<dyn Transformation>,
     in_dims: Vec<usize>,
     out_dims: Vec<usize>,
+}
+
+impl SubTransform {
+    fn try_new(
+        transform: Arc<dyn Transformation>,
+        in_dims: &[usize],
+        out_dims: &[usize],
+    ) -> Result<Self, String> {
+        if in_dims.len() != transform.input_ndim() || out_dims.len() != transform.output_ndim() {
+            return Err("Transform dimensionality does not match given dimension indices".into());
+        }
+        Ok(Self {
+            transform,
+            in_dims: in_dims.to_vec(),
+            out_dims: out_dims.to_vec(),
+        })
+    }
+
+    fn is_identity(&self) -> bool {
+        self.transform.is_identity()
+    }
 }
 
 #[derive(Debug)]
@@ -150,6 +175,7 @@ pub struct ByDimensionBuilder {
     in_dims: BTreeSet<usize>,
     out_dims: BTreeSet<usize>,
     sub_transforms: Vec<SubTransform>,
+    identity_mappings: BTreeMap<usize, usize>,
 }
 
 impl ByDimensionBuilder {
@@ -158,51 +184,50 @@ impl ByDimensionBuilder {
             in_dims: (0..in_ndim).collect(),
             out_dims: (0..out_ndim).collect(),
             sub_transforms: Vec::with_capacity(in_ndim.max(out_ndim)),
+            identity_mappings: BTreeMap::new(),
         }
     }
 
-    fn add_arced(
+    pub fn add_any(
         &mut self,
         transform: Arc<dyn Transformation>,
         in_dims: &[usize],
         out_dims: &[usize],
     ) -> Result<&mut Self, String> {
-        if transform.is_identity() {
-            // fill all identity dimensions in one step later
-            return Ok(self);
-        }
+        let st = SubTransform::try_new(transform, in_dims, out_dims)?;
 
-        for &out_dim in out_dims.iter() {
+        for &out_dim in &st.out_dims {
             if !self.out_dims.remove(&out_dim) {
                 return Err(format!("Output index {} already used", out_dim));
             }
         }
 
-        for &in_dim in in_dims.into_iter() {
+        for &in_dim in &st.in_dims {
             if !self.in_dims.remove(&in_dim) {
                 return Err(format!("Input index {} already used", in_dim));
             }
         }
 
-        self.sub_transforms.push(SubTransform {
-            transform,
-            in_dims: in_dims.to_vec(),
-            out_dims: out_dims.to_vec(),
-        });
+        self.sub_transforms.push(st);
 
         Ok(self)
     }
 
-    pub fn add_transform<T: Transformation + 'static>(
+    pub fn add_transform(
         &mut self,
-        transform: T,
+        transform: impl Transformation + 'static,
         in_dims: &[usize],
         out_dims: &[usize],
     ) -> Result<&mut Self, String> {
-        self.add_arced(Arc::new(transform), in_dims, out_dims)
+        self.add_any(Arc::new(transform), in_dims, out_dims)
     }
 
-    fn fill_missing_dims(&mut self) -> Result<(), String> {
+    /// If the unassigned dimensions have the same lengths,
+    /// zip them in ascending order as an identity transform.
+    ///
+    /// e.g. if input dimensions `1, 3, 7` and output dimensions `0, 5, 6` are unassigned,
+    /// add an identity transformation mapping 1 -> 0, 3 -> 5, and 7 -> 6.
+    pub fn infer_identities(&mut self) -> Result<(), String> {
         if self.in_dims.len() != self.out_dims.len() {
             return Err(format!(
                 "{} in-dims and {} out-dims left unassigned",
@@ -210,41 +235,78 @@ impl ByDimensionBuilder {
                 self.out_dims.len()
             ));
         }
-        if self.in_dims.len() > 0 {
-            self.sub_transforms.push(SubTransform {
-                transform: Arc::new(Identity::new(self.in_dims.len())),
-                in_dims: self.in_dims.iter().copied().collect(),
-                out_dims: self.out_dims.iter().copied().collect(),
-            });
+
+        for (from, to) in self
+            .in_dims
+            .iter()
+            .copied()
+            .zip(self.out_dims.iter().copied())
+        {
+            self.identity_mappings.insert(from, to);
         }
+        self.in_dims.clear();
+        self.out_dims.clear();
         Ok(())
     }
 
-    /// Fill in any unused dimensions with an identity, if possible,
-    /// and return the [ByDimension].
+    fn optimise_identity(&mut self) {
+        let mut identity_mappings = Vec::with_capacity(self.sub_transforms.len());
+        self.sub_transforms.retain(|st| {
+            if !st.is_identity() {
+                return true;
+            }
+            identity_mappings.extend(st.in_dims.iter().copied().zip(st.out_dims.iter().copied()));
+            false
+        });
+        identity_mappings.sort_by_key(|pair| pair.1);
+        let mut in_dims = Vec::with_capacity(identity_mappings.len());
+        let mut out_dims = in_dims.clone();
+        for (i, o) in identity_mappings {
+            in_dims.push(i);
+            out_dims.push(o);
+        }
+        self.sub_transforms.push(
+            SubTransform::try_new(Arc::new(Identity::new(in_dims.len())), &in_dims, &out_dims)
+                .unwrap(),
+        );
+    }
+
+    /// Return the [ByDimension] with the transformations given.
     ///
     /// See [ByDimensionBuilder::build_any] for a version which tries to optimise
     /// away unnecessary transformations.
-    pub fn build(mut self) -> Result<ByDimension, String> {
-        self.fill_missing_dims()?;
-
+    pub fn build(self) -> Result<ByDimension, String> {
+        if !self.in_dims.is_empty() || !self.out_dims.is_empty() {
+            return Err(format!(
+                "{} in-dims and {} out-dims left unassigned",
+                self.in_dims.len(),
+                self.out_dims.len()
+            ));
+        }
         Ok(ByDimension(self.sub_transforms))
     }
 
+    /// If multiple identity transformations are given, condense them into one.
     /// If the transformation is equivalent to an Identity, return that.
     /// If it is equivalent to a single other transform, return that.
     /// Otherwise, return the bydimension.
-    pub fn build_any(self) -> Result<Arc<dyn Transformation>, String> {
+    pub fn build_any(mut self) -> Result<Arc<dyn Transformation>, String> {
+        self.optimise_identity();
         let bd = self.build()?;
         if bd.is_identity() {
-            return Ok(Arc::new(Identity::new(bd.input_ndim())))
+            return Ok(Arc::new(Identity::new(bd.input_ndim())));
         }
 
         if bd.0.len() == 1 {
             let t = &bd.0[0];
 
-            if t.in_dims.iter().zip(t.out_dims.iter()).enumerate().all(|(idx, (ind, outd))| idx == *ind && ind == outd) {
-                return Ok(t.transform.clone())
+            if t.in_dims
+                .iter()
+                .zip(t.out_dims.iter())
+                .enumerate()
+                .all(|(idx, (ind, outd))| idx == *ind && ind == outd)
+            {
+                return Ok(t.transform.clone());
             }
         }
 

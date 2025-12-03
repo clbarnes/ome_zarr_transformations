@@ -30,13 +30,15 @@ impl Edge {
     }
 }
 
+type InnerPathCache = RwLock<HashMap<(NodeIndex, NodeIndex), Option<Arc<dyn Transformation>>>>;
+
 /// Contains a locked map from (src, tgt) tuple to the possible transformation going from src to tgt,
 /// if it has been queried before.
 /// An entry will be unoccupied if this path has not been queried before,
 /// None if it was queried before and found not to exist,
 /// and Some if a tranformation was found.
 #[derive(Debug, Default)]
-struct PathCache(RwLock<HashMap<(NodeIndex, NodeIndex), Option<Arc<dyn Transformation>>>>);
+struct PathCache(InnerPathCache);
 
 impl PathCache {
     /// Look-before-you-leap poison-clearing.
@@ -51,12 +53,14 @@ impl PathCache {
         self.0.get_mut().unwrap().clear();
     }
 
-    fn insert(&self, src: NodeIndex, tgt: NodeIndex, maybe_t: Option<Arc<dyn Transformation>>) -> Option<Option<Arc<dyn Transformation>>> {
+    fn insert(
+        &self,
+        src: NodeIndex,
+        tgt: NodeIndex,
+        maybe_t: Option<Arc<dyn Transformation>>,
+    ) -> Option<Option<Arc<dyn Transformation>>> {
         self.clear_poison();
-        self.0
-            .write()
-            .unwrap()
-            .insert((src, tgt), maybe_t)
+        self.0.write().unwrap().insert((src, tgt), maybe_t)
     }
 
     fn get(&self, src: &NodeIndex, tgt: &NodeIndex) -> Option<Option<Arc<dyn Transformation>>> {
@@ -130,17 +134,15 @@ impl<C: std::hash::Hash + Eq + Clone> TransformGraph<C> {
         // Simplify identity transforms.
         let (t, w): (Arc<dyn Transformation>, f64) = if t.is_identity() {
             (Arc::new(Identity::new(t.input_ndim())), 0.0)
-         } else {
+        } else {
             (t, weight)
         };
 
         let mut added_inverse = false;
         // Add the inverse if requested, if it exists.
-        if with_inverse {
-            if let Some(inverse) = t.invert() {
-                self.graph.add_edge(v, u, Edge::new_cost(inverse, w));
-                added_inverse = true;
-            }
+        if with_inverse && let Some(inverse) = t.invert() {
+            self.graph.add_edge(v, u, Edge::new_cost(inverse, w));
+            added_inverse = true;
         }
 
         self.graph.add_edge(u, v, Edge::new_cost(t, w));
@@ -218,7 +220,9 @@ impl<C: std::hash::Hash + Eq + Clone> TransformGraph<C> {
                         .add_arced(self.best_edge(ab[0], ab[1])?.transform.clone())
                         .expect("already checked dimensionality");
                 }
-                builder.build_any().expect("already checked sequence length")
+                builder
+                    .build_any()
+                    .expect("already checked sequence length")
             }
         };
 

@@ -1,20 +1,23 @@
-use smallvec::{SmallVec};
+use smallvec::SmallVec;
 #[cfg(test)]
 mod tests;
 
 mod transforms;
-pub use transforms::{Affine, Bijection, ByDimension, ByDimensionBuilder, Identity, MapAxis, Rotation, Scale, Sequence, SequenceBuilder, Translate};
+pub use transforms::{
+    Affine, Bijection, ByDimension, ByDimensionBuilder, Identity, MapAxis, Rotation, Scale,
+    Sequence, SequenceBuilder, Translate,
+};
 
 mod alloc;
 pub use alloc::{AllocatingTransformer, CustomAllocatingTransformer};
 
 mod traits;
-pub use traits::{Transformation};
+pub use traits::Transformation;
 mod matrix;
 pub use matrix::{Matrix, MatrixBuilder};
 use smallvec::smallvec;
 mod graph;
-pub use graph::{TransformGraph, Edge};
+pub use graph::{Edge, TransformGraph};
 
 pub const COORD_SIZE: usize = 6;
 
@@ -25,7 +28,10 @@ type ShortVec<T> = SmallVec<[T; COORD_SIZE]>;
 
 #[allow(unused)]
 /// Convenience function for copying a 2D slice from input to output.
-pub(crate) fn copy_into<T: Copy, InInner: AsRef<[T]>, OutInner: AsMut<[T]>>(input: &[InInner], output: &mut [OutInner]) {
+pub(crate) fn copy_into<T: Copy, InInner: AsRef<[T]>, OutInner: AsMut<[T]>>(
+    input: &[InInner],
+    output: &mut [OutInner],
+) {
     input
         .iter()
         .zip(output.iter_mut())
@@ -49,11 +55,19 @@ pub(crate) fn vec_of_vec<T: Copy>(outer_len: usize, inner_len: usize, val: T) ->
 }
 
 #[allow(unused)]
-pub(crate) fn vec_of_shortvec<T: Copy>(outer_len: usize, inner_len: usize, val: T) -> Vec<ShortVec<T>> {
+pub(crate) fn vec_of_shortvec<T: Copy>(
+    outer_len: usize,
+    inner_len: usize,
+    val: T,
+) -> Vec<ShortVec<T>> {
     vec![smallvec![val; inner_len]; outer_len]
 }
 
 #[allow(unused)]
-pub(crate) fn smallvec_of_vec<T: Copy>(outer_len: usize, inner_len: usize, val: T) -> ShortVec<Vec<T>> {
+pub(crate) fn smallvec_of_vec<T: Copy>(
+    outer_len: usize,
+    inner_len: usize,
+    val: T,
+) -> ShortVec<Vec<T>> {
     smallvec![vec![val; inner_len]; outer_len]
 }
