@@ -133,7 +133,11 @@ impl Transformation for Sequence {
 pub struct SequenceBuilder(Vec<Arc<dyn Transformation>>);
 
 impl SequenceBuilder {
-    fn add_arced(&mut self, t: Arc<dyn Transformation>) -> Result<(), String> {
+    pub fn with_capacity(capacity: usize) -> Self {
+        Self(Vec::with_capacity(capacity))
+    }
+
+    pub(crate) fn add_arced(&mut self, t: Arc<dyn Transformation>) -> Result<(), String> {
         if let Some(last_ndim) = self.0.last().map(|prev| prev.output_ndim()) {
             if t.input_ndim() != last_ndim {
                 return Err("New transformation input dimensionality does not match previous output dimensionality".into());

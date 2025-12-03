@@ -13,6 +13,8 @@ pub use traits::{Transformation};
 mod matrix;
 pub use matrix::{Matrix, MatrixBuilder};
 use smallvec::smallvec;
+mod graph;
+pub use graph::{TransformGraph, Edge};
 
 pub const COORD_SIZE: usize = 6;
 

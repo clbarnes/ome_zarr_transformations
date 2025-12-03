@@ -5,6 +5,8 @@ edition = "2024"
 
 [dependencies]
 log = "0.4.28"
+ordered-float = "5.1.0"
+petgraph = { version = "0.8.3", default-features = false, features = ["std", "graphmap", "stable_graph"] }
 smallvec = "1.15.1"
 
 [dev-dependencies]
