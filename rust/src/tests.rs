@@ -1,9 +1,9 @@
 use std::{
     iter,
-    sync::{Arc, LazyLock},
+    sync::{LazyLock},
 };
 
-use crate::{AllocatingTransformer, CustomAllocatingTransformer, Transformation};
+use crate::{Transformation};
 use faer::rand::{Rng, SeedableRng, rngs::SmallRng};
 
 pub const SMALL_NUMBER: f64 = 1e-10;
@@ -14,10 +14,6 @@ pub static COORDS_3D_1000_COLS: LazyLock<Vec<Vec<f64>>> =
 pub fn init_logger() {
     #[allow(unused_must_use)]
     env_logger::try_init();
-}
-
-fn vec_of_len(len: usize) -> Vec<f64> {
-    vec![f64::NAN; len]
 }
 
 fn make_coords(n_pts: usize, ndim: usize) -> Vec<Vec<f64>> {
@@ -44,19 +40,36 @@ fn transpose(coords: &[Vec<f64>]) -> Vec<Vec<f64>> {
     columns
 }
 
+fn transform<T: Transformation>(t: &T, coord: &[f64]) -> Vec<f64> {
+    let mut out = vec![f64::NAN; t.output_ndim()];
+    t.transform_into(coord, &mut out);
+    out
+}
+
+fn bulk_transform<T: Transformation, C: AsRef<[f64]>>(t: &T, coords: &[C]) -> Vec<Vec<f64>> {
+    let refs: Vec<_> = coords.iter().map(|c| c.as_ref()).collect();
+    let mut out = vec![vec![f64::NAN; t.output_ndim()]; coords.len()];
+    let mut out_refs: Vec<_> = out.iter_mut().map(|b| b.as_mut()).collect();
+    t.bulk_transform_into(&refs, &mut out_refs);
+    out
+}
+
+fn column_transform<T: Transformation, C: AsRef<[f64]>>(t: &T, columns: &[C]) -> Vec<Vec<f64>> {
+    let refs: Vec<_> = columns.iter().map(|c| c.as_ref()).collect();
+    let mut out = vec![vec![f64::NAN; refs[0].len()]; t.output_ndim()];
+    let mut out_refs: Vec<_> = out.iter_mut().map(|b| b.as_mut()).collect();
+    t.column_transform_into(&refs, &mut out_refs);
+    out
+}
+
 /// Assert that transforming coordinates in bulk matches transforming them one by one.
 pub fn check_transform_bulk<T: Transformation>(t: T) {
     init_logger();
     let coords: &[Vec<f64>] = COORDS_3D_1000.as_ref();
-    let refs: Vec<&[f64]> = coords.iter().map(|pt| pt.as_ref()).collect();
-    let at = CustomAllocatingTransformer::new(
-        Arc::new(t),
-        |ndim| vec![f64::NAN; ndim],
-        |len| vec![f64::NAN; len],
-    );
-    let results_many = at.bulk_transform(&refs);
+
+    let results_many = bulk_transform(&t, coords);
     for (orig, many_transformed) in coords.iter().zip(results_many.iter()) {
-        let result_single = at.transform(orig);
+        let result_single = transform(&t, orig);
         approx::assert_ulps_eq!(
             result_single.as_slice(),
             many_transformed.as_slice(),
@@ -70,13 +83,11 @@ pub fn check_transform_col<T: Transformation>(t: T) {
     init_logger();
     let coords: &[Vec<f64>] = COORDS_3D_1000.as_ref();
     let columns: &[Vec<f64>] = COORDS_3D_1000_COLS.as_ref();
-    let col_refs: Vec<_> = columns.iter().map(|col| col.as_ref()).collect();
 
-    let acol = CustomAllocatingTransformer::new(Arc::new(t), vec_of_len, vec_of_len);
-    let transformed_columns = acol.column_transform(&col_refs);
+    let transformed_columns = column_transform(&t, columns);
 
     for (coord_idx, pt) in coords.iter().enumerate() {
-        let transformed_pt = acol.transform(pt);
+        let transformed_pt = transform(&t, pt);
         let col_transformed_pt: Vec<_> = (0..columns.len())
             .map(|dim_idx| transformed_columns[dim_idx][coord_idx])
             .collect();

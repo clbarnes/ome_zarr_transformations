@@ -6,9 +6,6 @@ mod tests;
 
 pub mod transforms;
 
-mod alloc;
-pub use alloc::{AllocatingTransformer, CustomAllocatingTransformer};
-
 mod traits;
 pub use traits::{ArrayProvider, Transformation, ValueProvider};
 mod matrix;

@@ -67,9 +67,9 @@ impl Matrix {
 
     pub fn transpose(&self) -> Matrix {
         let mut data = vec![0.0; self.data.len()];
-        for r in 0..self.nrows {
-            for c in 0..self.ncols {
-                data[c * self.nrows + r] = self[(r, c)];
+        for (r_idx, row) in self.data.chunks(self.nrows).enumerate() {
+            for (c_idx, val) in row.iter().enumerate() {
+                data[c_idx * self.nrows + r_idx] = *val;
             }
         }
         Matrix {
@@ -96,11 +96,9 @@ impl Matrix {
 
     /// N.B. Coordinate "columns" are the _rows_ of the input and output matrices.
     pub fn matmul_transposed_into(&self, coord_cols: &[&[f64]], buf: &mut [&mut [f64]]) {
-        for (out_dim_idx, buf_col) in buf.iter_mut().enumerate() {
+        for (buf_col, mat_row) in buf.iter_mut().zip(self.data.chunks(self.ncols)) {
             buf_col.fill(0.0);
-            let row_start = out_dim_idx * self.ncols;
-            let row = &self.data[row_start..(row_start + self.ncols)];
-            for (mat_val, coord_col) in row.iter().zip(coord_cols.iter()) {
+            for (mat_val, coord_col) in mat_row.iter().zip(coord_cols.iter()) {
                 // our hottest loop is iterating over long arrays in lock step
                 for (c, b) in coord_col.iter().zip(buf_col.iter_mut()) {
                     *b += c * mat_val;
@@ -113,21 +111,25 @@ impl Matrix {
         self.data.get(row * self.ncols + col)
     }
 
+    fn rows(&self) -> impl Iterator<Item = &[f64]> {
+        self.data.chunks(self.ncols)
+    }
+
     /// Whether this matrix is an identity matrix,
     /// i.e. a square matrix with 1s on the main diagonal and 0s elsewhere.
     pub fn is_identity(&self) -> bool {
         if self.ncols != self.nrows {
             return false;
         }
-        for (idx, d) in self.data.iter().enumerate() {
-            let row = idx / self.nrows;
-            let col = idx % self.nrows;
-            if row == col {
-                if *d != 1.0 {
+        for (row_idx, row) in self.rows().enumerate() {
+            for (col_idx, val) in row.iter().enumerate() {
+                if row_idx == col_idx {
+                    if *val != 1.0 {
+                        return false;
+                    }
+                } else if *val != 0.0 {
                     return false;
                 }
-            } else if *d != 0.0 {
-                return false;
             }
         }
         true
@@ -144,31 +146,31 @@ impl Matrix {
         let actual_col = rectify_idx(col, skipped_cols);
         self.get(actual_row, actual_col)
     }
+
     pub fn nrows(&self) -> usize {
         self.nrows
     }
+
     pub fn ncols(&self) -> usize {
         self.ncols
     }
 
+    /// Also means that the columns are orthonormal.
     pub(crate) fn has_orthonormal_rows(&self) -> bool {
         let mut rows: Vec<&[f64]> = Vec::with_capacity(self.nrows());
-        for r in 0..self.nrows() {
-            let start = r * self.ncols();
-            let end = start + self.ncols();
-            let new_vec = &self.data[start..end];
-
-            if magnitude(new_vec) - 1.0 > 1e-10 {
+        for this_row in self.rows() {
+            if magnitude(this_row) - 1.0 > 1e-10 {
                 return false;
             }
 
-            for row in rows.iter() {
-                let dp = dot(row, new_vec);
+            for prev_row in rows.iter() {
+                let dp = dot(this_row, prev_row);
                 if dp.abs() > 1e-10 {
-                    return false;
+                    return false
                 }
             }
-            rows.push(new_vec);
+
+            rows.push(this_row)
         }
         true
     }
