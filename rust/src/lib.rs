@@ -16,7 +16,6 @@ pub use graph::{Edge, TransformGraph};
 pub mod indexer;
 pub mod ndarr;
 
-
 #[cfg(feature = "image")]
 pub use image;
 #[cfg(feature = "ndarray")]

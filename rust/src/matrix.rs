@@ -36,8 +36,12 @@ impl Matrix {
     }
 
     pub fn new_identity(ndim: usize) -> Self {
-        let data = vec![0.0; ndim*ndim];
-        let mut mat = Self { data, nrows: ndim, ncols: ndim };
+        let data = vec![0.0; ndim * ndim];
+        let mut mat = Self {
+            data,
+            nrows: ndim,
+            ncols: ndim,
+        };
         for idx in 0..ndim {
             mat[(idx, idx)] = 1.0;
         }
