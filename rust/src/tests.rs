@@ -1,9 +1,6 @@
-use std::{
-    iter,
-    sync::{LazyLock},
-};
+use std::{iter, sync::LazyLock};
 
-use crate::{Transformation};
+use crate::Transformation;
 use faer::rand::{Rng, SeedableRng, rngs::SmallRng};
 
 pub const SMALL_NUMBER: f64 = 1e-10;

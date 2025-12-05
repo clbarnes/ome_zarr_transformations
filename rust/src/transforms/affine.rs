@@ -1,3 +1,5 @@
+use smallvec::ToSmallVec;
+
 use crate::{ShortVec, Transformation, matrix::Matrix};
 
 #[derive(Debug, Clone)]
@@ -9,7 +11,7 @@ pub struct Affine {
 }
 
 impl Affine {
-    pub fn try_new(unaugmented: Matrix, translation: ShortVec<f64>) -> Result<Self, String> {
+    pub fn try_new(unaugmented: Matrix, translation: &[f64]) -> Result<Self, String> {
         // TODO: check for homogeneity
         if unaugmented.nrows() != translation.len() {
             return Err(
@@ -19,7 +21,7 @@ impl Affine {
         }
         Ok(Self {
             unaugmented,
-            translation,
+            translation: translation.to_smallvec(),
         })
     }
 

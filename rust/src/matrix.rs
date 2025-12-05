@@ -1,4 +1,4 @@
-use std::ops::Index;
+use std::ops::{Index, IndexMut};
 
 use crate::ShortVec;
 
@@ -20,14 +20,28 @@ impl Index<(usize, usize)> for Matrix {
     type Output = f64;
 
     fn index(&self, index: (usize, usize)) -> &Self::Output {
-        self.get(index.0, index.1)
-            .expect("index should be in bounds")
+        &self.data[index.0 * self.ncols + index.1]
+    }
+}
+
+impl IndexMut<(usize, usize)> for Matrix {
+    fn index_mut(&mut self, index: (usize, usize)) -> &mut Self::Output {
+        &mut self.data[index.0 * self.ncols + index.1]
     }
 }
 
 impl Matrix {
     pub fn builder(row_vecs: bool) -> MatrixBuilder {
         MatrixBuilder::new(row_vecs)
+    }
+
+    pub fn new_identity(ndim: usize) -> Self {
+        let data = vec![0.0; ndim*ndim];
+        let mut mat = Self { data, nrows: ndim, ncols: ndim };
+        for idx in 0..ndim {
+            mat[(idx, idx)] = 1.0;
+        }
+        mat
     }
 
     /// Row-major/ C order data
@@ -166,7 +180,7 @@ impl Matrix {
             for prev_row in rows.iter() {
                 let dp = dot(this_row, prev_row);
                 if dp.abs() > 1e-10 {
-                    return false
+                    return false;
                 }
             }
 

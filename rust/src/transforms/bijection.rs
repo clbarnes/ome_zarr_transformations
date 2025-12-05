@@ -23,9 +23,9 @@ impl Bijection {
         Ok(Self { forward, reverse })
     }
 
-    pub fn try_new<T1: Transformation + 'static, T2: Transformation + 'static>(
-        forward: T1,
-        reverse: T2,
+    pub fn try_new<Fwd: Transformation + 'static, Rev: Transformation + 'static>(
+        forward: Fwd,
+        reverse: Rev,
     ) -> Result<Self, String> {
         Self::try_new_arc(Arc::new(forward), Arc::new(reverse))
     }

@@ -13,6 +13,14 @@ pub use matrix::{Matrix, MatrixBuilder};
 use smallvec::smallvec;
 mod graph;
 pub use graph::{Edge, TransformGraph};
+pub mod indexer;
+pub mod ndarr;
+
+
+#[cfg(feature = "image")]
+pub use image;
+#[cfg(feature = "ndarray")]
+pub use ndarray;
 
 pub const COORD_SIZE: usize = 6;
 

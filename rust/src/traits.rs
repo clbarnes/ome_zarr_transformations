@@ -115,7 +115,6 @@ pub trait ArrayProvider: std::fmt::Debug + Send + Sync {
     fn output_len(&self) -> usize;
 }
 
-
 /// Trait representing an N-D array to look up (or interpolate) a value into.
 ///
 /// This is useful for turning a coordinate transformation into an image transformation.
