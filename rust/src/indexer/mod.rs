@@ -35,11 +35,11 @@ impl<T> Ravelled<T> {
         Ok(Ravelled { data, chunk_size })
     }
 
-    pub fn chunks<'a>(&'a self) -> impl Iterator<Item = &'a [T]> {
+    pub fn chunks(&self) -> impl Iterator<Item = &[T]> {
         self.data.chunks_exact(self.chunk_size)
     }
 
-    pub fn chunks_mut<'a>(&'a mut self) -> impl Iterator<Item = &'a mut [T]> {
+    pub fn chunks_mut(&mut self) -> impl Iterator<Item = &mut [T]> {
         self.data.chunks_exact_mut(self.chunk_size)
     }
 }

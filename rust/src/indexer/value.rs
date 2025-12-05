@@ -152,7 +152,7 @@ impl<T: Copy + Default, A: BoundedIndex<T>> UnboundedIndex<T> for Const<T, A> {
         }
     }
 
-    fn bulk_get_into(&self, coords: &[&[isize]], mut buf: &mut [T]) {
+    fn bulk_get_into(&self, coords: &[&[isize]], buf: &mut [T]) {
         let mut new_coords = Vec::with_capacity(coords.len());
         let mut indices = Vec::with_capacity(coords.len());
         for (idx, (coord, b)) in coords.iter().zip(buf.iter_mut()).enumerate() {
@@ -170,8 +170,7 @@ impl<T: Copy + Default, A: BoundedIndex<T>> UnboundedIndex<T> for Const<T, A> {
 
         let new_coord_refs: Vec<_> = new_coords.iter().map(|c| c.as_ref()).collect();
         if new_coord_refs.len() == coords.len() {
-            self.bounded
-                .bulk_get_into_unchecked(&new_coord_refs, &mut buf)
+            self.bounded.bulk_get_into_unchecked(&new_coord_refs, buf)
         } else {
             let mut out_buf = vec![Default::default(); new_coords.len()];
             self.bounded
@@ -188,7 +187,6 @@ impl<T: Copy + Default, A: BoundedIndex<T>> UnboundedIndex<T> for Const<T, A> {
         let mut coord = vec![usize::MAX; columns.len()];
 
         for ((idx, b), s) in (0..columns[0].len())
-            .into_iter()
             .zip(buf.iter_mut())
             .zip(skip.iter_mut())
         {

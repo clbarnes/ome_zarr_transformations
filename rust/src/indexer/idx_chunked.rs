@@ -21,6 +21,8 @@ impl<T, B: BoundedIndex<T>, C: ChunkedIndex<T, B>> ChunkedIndexer<T, B, C> {
     }
 }
 
+type CoordToOpt<'a, T> = BTreeMap<ShortVec<usize>, ShortVec<&'a mut Option<T>>>;
+
 impl<T: Clone, B: BoundedIndex<T>, C: ChunkedIndex<T, B>> BoundedIndex<T>
     for ChunkedIndexer<T, B, C>
 {
@@ -32,10 +34,7 @@ impl<T: Clone, B: BoundedIndex<T>, C: ChunkedIndex<T, B>> BoundedIndex<T>
 
     fn bulk_get_into(&self, coords: &[&[usize]], buf: &mut [Option<T>]) {
         // map of chunk ID to offset coordinate to mutable references into buf
-        let mut chunks: BTreeMap<
-            ShortVec<usize>,
-            BTreeMap<ShortVec<usize>, ShortVec<&mut Option<T>>>,
-        > = Default::default();
+        let mut chunks: BTreeMap<ShortVec<usize>, CoordToOpt<T>> = Default::default();
         for (coord, b) in coords.iter().zip(buf.iter_mut()) {
             let Some(co) = self.chunked.get_chunk_offset(coord) else {
                 *b = None;
@@ -114,10 +113,7 @@ impl<T: Clone, B: BoundedIndex<T>, C: ChunkedIndex<T, B>> BoundedIndex<T>
     }
 
     fn column_get_into(&self, columns: &[&[usize]], buf: &mut [Option<T>]) {
-        let mut chunks: BTreeMap<
-            ShortVec<usize>,
-            BTreeMap<ShortVec<usize>, ShortVec<&mut Option<T>>>,
-        > = Default::default();
+        let mut chunks: BTreeMap<ShortVec<usize>, CoordToOpt<T>> = Default::default();
         let n_dim = columns.len();
         let n_coords = columns[0].len();
         let mut coord = vec![];
